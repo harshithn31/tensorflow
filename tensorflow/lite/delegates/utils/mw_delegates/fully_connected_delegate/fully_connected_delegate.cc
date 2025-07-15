@@ -1,5 +1,6 @@
 #include "tensorflow/lite/delegates/utils/mw_delegates/fully_connected_delegate/fully_connected_delegate.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -19,8 +20,6 @@
 #include "tensorflow/lite/delegates/utils/mw_delegates/fully_connected_delegate/fully_connected_drivers/fully_connected_bram_driver.h"
 #include "tensorflow/lite/delegates/utils/mw_delegates/fully_connected_delegate/fully_connected_drivers/fully_connected_ip_driver.h"
 
-
-
 namespace tflite {
 namespace fully_connected {
 
@@ -29,7 +28,7 @@ namespace fully_connected {
 class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
  public:
   explicit FullyConnectedDelegateKernel(const FullyConnectedDelegateOptions& options)
-      : options_(options), fpga_ip_driver_(std::make_unique<FullyConnectedIpDriver>()), fpga_bram_driver_(std::make_unique<FullyConnectedBRAMDriver>()) {}
+      : options_(options), fpga_ip_driver_(std::make_unique<FpgaIpDriver>()), fpga_bram_driver_(std::make_unique<FpgaBramDriver>()) {}
 
 
   // Lifecycle methods for the delegate kernel.
@@ -40,6 +39,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
   TfLiteStatus Init(TfLiteContext* context,
                     const TfLiteDelegateParams* params) override {
 
+  TF_LITE_KERNEL_LOG(context, "======== IN FullyConnectedDelegateKernel::Init =========\n");
   // Currently assuming one node per delegate. So only one FullyConnected node
   // is replaced by the delegate. 
   //TODO: Support multiple nodes in the future. By looping over params->nodes_to_replace->data
@@ -64,10 +64,10 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
     bool clear_bram = false;
       fpga_bram_driver_->initialize_bram(clear_bram);
   } catch (const std::exception& e) {
-      TF_LITE_KERNEL_LOG(context, "BRAM initialization failed: %s", e.what());
+      TF_LITE_KERNEL_LOG(context, "BRAM initialization failed: %s\n", e.what());
       return kTfLiteError;
   }
-
+  TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Init completed successfully =========\n");
   return kTfLiteOk;
 }
 
@@ -75,20 +75,55 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
   // It is called once per node(one instance of the delegate, i.e one FullyConnected operation).
   // Used to validate input and output memory, Allocate BRAMS and Pre-load weights and biases as they are static for the given node.
   TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) override {
+  
+  TF_LITE_KERNEL_LOG(context, "======== IN FullyConnectedDelegateKernel::Prepare =========\n");
+
   const TfLiteTensor& input_tensor = context->tensors[input_index_];
   const TfLiteTensor& weights_tensor = context->tensors[weights_index_];
   const TfLiteTensor& output_tensor = context->tensors[output_index_];
 
-  if (input_tensor.allocation_type == kTfLiteDynamic ||
-      weights_tensor.allocation_type == kTfLiteDynamic ||
-      output_tensor.allocation_type == kTfLiteDynamic) {
-    TF_LITE_KERNEL_LOG(context, "Prepare failed: dynamic tensors are not supported.");
+  // Additional safety checks for dynamic tensors
+  if (input_tensor.dims == nullptr || weights_tensor.dims == nullptr || output_tensor.dims == nullptr) {
+    TF_LITE_KERNEL_LOG(context, "Prepare failed: null tensor dimensions detected.\n");
     return kTfLiteError;
   }
 
-  // Write weights to BRAM
-  if (fpga_bram_driver_->write_weights_to_bram(weights_tensor.data.i32, NumElements(weights_tensor.dims))) {
-    TF_LITE_KERNEL_LOG(context, "Prepare failed: failed to write weights to BRAM.");
+  // Check for dynamic dimensions
+  for (int i = 0; i < input_tensor.dims->size; ++i) {
+    if (input_tensor.dims->data[i] < 0) {
+      TF_LITE_KERNEL_LOG(context, "Prepare failed: dynamic input tensor dimension detected.\n");
+      return kTfLiteError;
+    }
+  }
+  for (int i = 0; i < weights_tensor.dims->size; ++i) {
+    if (weights_tensor.dims->data[i] < 0) {
+      TF_LITE_KERNEL_LOG(context, "Prepare failed: dynamic weights tensor dimension detected.\n");
+      return kTfLiteError;
+    }
+  }
+  for (int i = 0; i < output_tensor.dims->size; ++i) {
+    if (output_tensor.dims->data[i] < 0) {
+      TF_LITE_KERNEL_LOG(context, "Prepare failed: dynamic output tensor dimension detected.\n");
+      return kTfLiteError;
+    }
+  }
+
+  if (input_tensor.allocation_type == kTfLiteDynamic ||
+      weights_tensor.allocation_type == kTfLiteDynamic ||
+      output_tensor.allocation_type == kTfLiteDynamic) {
+    TF_LITE_KERNEL_LOG(context, "Prepare failed: dynamic tensors are not supported.\n");
+    return kTfLiteError;
+  }
+
+  // Write weights to BRAM (FLOAT32 only)
+  if (weights_tensor.type == kTfLiteFloat32) {
+    if (fpga_bram_driver_->write_weights_to_bram(weights_tensor.data.f, NumElements(weights_tensor.dims))) {
+      TF_LITE_KERNEL_LOG(context, "Prepare failed: failed to write FLOAT32 weights to BRAM.\n");
+      return kTfLiteError;
+    }
+    TF_LITE_KERNEL_LOG(context, "FLOAT32 weights written to BRAM.\n");
+  } else {
+    TF_LITE_KERNEL_LOG(context, "Prepare failed: unsupported weights tensor type: %d. Only FLOAT32 supported.\n", weights_tensor.type);
     return kTfLiteError;
   }
 
@@ -96,22 +131,52 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
   if (has_bias_) {
     const TfLiteTensor& bias_tensor = context->tensors[bias_index_];
     if (bias_tensor.allocation_type == kTfLiteDynamic) {
-      TF_LITE_KERNEL_LOG(context, "Prepare failed: dynamic bias tensor.");
+      TF_LITE_KERNEL_LOG(context, "Prepare failed: dynamic bias tensor.\n");
       return kTfLiteError;
     }
 
-    if (fpga_bram_driver_->write_bias_to_bram(bias_tensor.data.i32, NumElements(bias_tensor.dims))) {
-      TF_LITE_KERNEL_LOG(context, "Prepare failed: failed to write bias to BRAM.");
+    // Handle bias tensors (FLOAT32 only)
+    if (bias_tensor.type == kTfLiteFloat32) {
+      if (fpga_bram_driver_->write_bias_to_bram(bias_tensor.data.f, NumElements(bias_tensor.dims))) {
+        TF_LITE_KERNEL_LOG(context, "Prepare failed: failed to write FLOAT32 bias to BRAM.\n");
+        return kTfLiteError;
+      }
+      TF_LITE_KERNEL_LOG(context, "FLOAT32 bias written to BRAM.\n");
+    } else {
+      TF_LITE_KERNEL_LOG(context, "Prepare failed: unsupported bias tensor type: %d. Only FLOAT32 supported.\n", bias_tensor.type);
       return kTfLiteError;
     }
 
-    TF_LITE_KERNEL_LOG(context, "Weights and bias successfully written to BRAM.");
+    TF_LITE_KERNEL_LOG(context, "Weights and bias successfully written to BRAM.\n");
 
+  }
+
+  // Ensure output tensor is properly allocated
+  TfLiteTensor& output_tensor_mutable = context->tensors[output_index_];
+  if (output_tensor_mutable.data.raw == nullptr) {
+    TF_LITE_KERNEL_LOG(context, "Output tensor data is null, attempting to allocate...\n");
+    
+    // Request tensor resize to trigger allocation
+    TfLiteIntArray* output_shape = TfLiteIntArrayCopy(output_tensor_mutable.dims);
+    if (output_shape == nullptr) {
+      TF_LITE_KERNEL_LOG(context, "Failed to copy output tensor shape\n");
+      return kTfLiteError;
+    }
+    
+    TfLiteStatus resize_status = context->ResizeTensor(context, &output_tensor_mutable, output_shape);
+    if (resize_status != kTfLiteOk) {
+      TF_LITE_KERNEL_LOG(context, "Failed to resize output tensor\n");
+      return kTfLiteError;
+    }
+    
+    TF_LITE_KERNEL_LOG(context, "Output tensor allocated successfully at address: %p\n", output_tensor_mutable.data.raw);
+  } else {
+    TF_LITE_KERNEL_LOG(context, "Output tensor already allocated at address: %p\n", output_tensor_mutable.data.raw);
   }
 
   // // Optional: clear output BRAM
   // fpga_driver_->clear_output_bram();
-
+  TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Prepare completed successfully =========\n");
   return kTfLiteOk;
 } 
 
@@ -124,31 +189,123 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
     // outputs for node
     // ''i''. Note, that it is intentional we have simple implementation as this
     // is for demonstration.
+    TF_LITE_KERNEL_LOG(context, "======== IN FullyConnectedDelegateKernel::Eval =========\n");
 
     const TfLiteTensor& input_tensor = context->tensors[input_index_];
     TfLiteTensor& output_tensor = context->tensors[output_index_];
 
+    // Safety check for dynamic tensors during evaluation
+    if (input_tensor.dims == nullptr || output_tensor.dims == nullptr) {
+      TF_LITE_KERNEL_LOG(context, "Eval failed: null tensor dimensions detected.\n");
+      return kTfLiteError;
+    }
+
+    // Check for dynamic dimensions
+    for (int i = 0; i < input_tensor.dims->size; ++i) {
+      if (input_tensor.dims->data[i] < 0) {
+        TF_LITE_KERNEL_LOG(context, "Eval failed: dynamic input tensor dimension detected.\n");
+        return kTfLiteError;
+      }
+    }
+    for (int i = 0; i < output_tensor.dims->size; ++i) {
+      if (output_tensor.dims->data[i] < 0) {
+        TF_LITE_KERNEL_LOG(context, "Eval failed: dynamic output tensor dimension detected.\n");
+        return kTfLiteError;
+      }
+    }
+
     const int input_size = NumElements(input_tensor.dims);
     const int output_size = NumElements(output_tensor.dims);
 
-    // Write input tensor to input BRAM
-    if (fpga_bram_driver_->write_input_to_bram(input_tensor.data.i32, input_size)) {
-      TF_LITE_KERNEL_LOG(context, "Eval failed: failed to write input to BRAM.");
+    // Additional safety check for zero-sized tensors
+    if (input_size <= 0 || output_size <= 0) {
+      TF_LITE_KERNEL_LOG(context, "Eval failed: invalid tensor sizes (input: %d, output: %d).\n", input_size, output_size);
+      return kTfLiteError;
+    }
+
+    // Debug logging for tensor sizes
+    TF_LITE_KERNEL_LOG(context, "Tensor sizes - Input: %d, Output: %d\n", input_size, output_size);
+    TF_LITE_KERNEL_LOG(context, "Input tensor shape: [%d, %d]\n", input_tensor.dims->data[0], input_tensor.dims->data[1]);
+    TF_LITE_KERNEL_LOG(context, "Output tensor shape: [%d, %d]\n", output_tensor.dims->data[0], output_tensor.dims->data[1]);
+
+    // Extract the actual feature dimensions (ignore batch dimension)
+    const int input_features = input_tensor.dims->data[1];  // Features dimension
+    const int output_features = output_tensor.dims->data[1]; // Output features dimension
+    
+    // DEBUG: Force print to console to see what's happening
+    printf("[DELEGATE-DEBUG] Input tensor shape: [%d, %d]\n", input_tensor.dims->data[0], input_tensor.dims->data[1]);
+    printf("[DELEGATE-DEBUG] Output tensor shape: [%d, %d]\n", output_tensor.dims->data[0], output_tensor.dims->data[1]);
+    printf("[DELEGATE-DEBUG] Feature dimensions - Input: %d, Output: %d\n", input_features, output_features);
+    fflush(stdout);
+    
+    TF_LITE_KERNEL_LOG(context, "Feature dimensions - Input: %d, Output: %d\n", input_features, output_features);
+
+    // Write input tensor to input BRAM (FLOAT32 only)
+    if (input_tensor.type == kTfLiteFloat32) {
+      // Safety check: ensure input tensor data is allocated
+      if (input_tensor.data.f == nullptr) {
+        TF_LITE_KERNEL_LOG(context, "Eval failed: input tensor data is null\n");
+        return kTfLiteError;
+      }
+      
+      // For batched input, we need to handle each sample in the batch
+      const int batch_size = input_tensor.dims->data[0];
+      if (batch_size != 1) {
+        TF_LITE_KERNEL_LOG(context, "Eval failed: batch size %d not supported. Only batch size 1 supported.\n", batch_size);
+        return kTfLiteError;
+      }
+      
+      TF_LITE_KERNEL_LOG(context, "Input tensor data address: %p\n", input_tensor.data.f);
+      
+      if (fpga_bram_driver_->write_input_to_bram(input_tensor.data.f, input_features)) {
+        TF_LITE_KERNEL_LOG(context, "Eval failed: failed to write FLOAT32 input to BRAM.\n");
+        return kTfLiteError;
+      }
+      
+      // DEBUG: Print what we're passing to BRAM
+      printf("[DELEGATE-DEBUG] Calling write_input_to_bram with input_features: %d\n", input_features);
+      fflush(stdout);
+      
+      TF_LITE_KERNEL_LOG(context, "Successfully wrote input to BRAM (features: %d)\n", input_features);
+    } else {
+      TF_LITE_KERNEL_LOG(context, "Eval failed: unsupported input tensor type: %d. Only FLOAT32 supported.\n", input_tensor.type);
       return kTfLiteError;
     }
 
     // Trigger FPGA execution
-    if (fpga_ip_driver_->fpga_compute(input_size, output_size)) {
-      TF_LITE_KERNEL_LOG(context, "Eval failed: FPGA inference trigger failed.");
+    printf("[DELEGATE-DEBUG] Calling fpga_compute with input_features: %d, output_features: %d\n", input_features, output_features);
+    fflush(stdout);
+    
+    if (fpga_ip_driver_->fpga_compute(input_features, output_features)) {
+      TF_LITE_KERNEL_LOG(context, "Eval failed: FPGA inference trigger failed.\n");
       return kTfLiteError;
     }
+    TF_LITE_KERNEL_LOG(context, "FPGA computation completed successfully\n");
 
-    // Read output from output BRAM into output tensor
-    if (fpga_bram_driver_->read_output_from_bram(output_tensor.data.i32, output_size)) {
-      TF_LITE_KERNEL_LOG(context, "Eval failed: failed to read output from BRAM.");
+    // Read output from output BRAM into output tensor (FLOAT32 only)
+    if (output_tensor.type == kTfLiteFloat32) {
+      // Safety check: ensure output tensor data is allocated
+      if (output_tensor.data.f == nullptr) {
+        TF_LITE_KERNEL_LOG(context, "Eval failed: output tensor data is null\n");
+        return kTfLiteError;
+      }
+      
+      TF_LITE_KERNEL_LOG(context, "Output tensor data address: %p\n", output_tensor.data.f);
+      
+      // DEBUG: Print what we're passing to BRAM for output
+      printf("[DELEGATE-DEBUG] Calling read_output_from_bram with output_features: %d\n", output_features);
+      fflush(stdout);
+      
+      if (fpga_bram_driver_->read_output_from_bram(output_tensor.data.f, output_features)) {
+        TF_LITE_KERNEL_LOG(context, "Eval failed: failed to read FLOAT32 output from BRAM.\n");
+        return kTfLiteError;
+      }
+      TF_LITE_KERNEL_LOG(context, "Successfully read output from BRAM (features: %d)\n", output_features);
+    } else {
+      TF_LITE_KERNEL_LOG(context, "Eval failed: unsupported output tensor type: %d. Only FLOAT32 supported.\n", output_tensor.type);
       return kTfLiteError;
     }
-
+    TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Eval completed successfully =========\n");
     return kTfLiteOk;
 }
 
@@ -161,7 +318,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
 
   std::vector<std::vector<int>> inputs_, outputs_;
   std::vector<int> builtin_code_;
-  std::unique_ptr<FullyConnectedIpDriver> fpga_ip_driver_;  // FPGA driver instance
+  std::unique_ptr<FpgaIpDriver> fpga_ip_driver_;  // FPGA driver instance
   std::unique_ptr<FpgaBramDriver> fpga_bram_driver_;  // BRAM driver instance
 
   int NumElements(const TfLiteIntArray* dims) {
@@ -184,19 +341,27 @@ class FullyConnectedDelegate : public SimpleDelegateInterface {
                                  const TfLiteNode* node,
                                  TfLiteContext* context) const override {
 
-    TF_LITE_KERNEL_LOG(context, "Registering op with builtin_code: %d", registration->builtin_code);
+    TF_LITE_KERNEL_LOG(context, "======== IN FullyConnectedDelegate: IsNodeSupportedByDelegate =========\n");
+    TF_LITE_KERNEL_LOG(context, "FullyConnectedDelegate: Checking node support\n");
+    TF_LITE_KERNEL_LOG(context, "Node builtin_code: %d (kTfLiteBuiltinFullyConnected = %d)\n", 
+                       registration->builtin_code, kTfLiteBuiltinFullyConnected);
 
     // This delegate supports only FULLY_CONNECTED operations.
-    if (registration->builtin_code != kTfLiteBuiltinFullyConnected)
+    if (registration->builtin_code != kTfLiteBuiltinFullyConnected) {
+      TF_LITE_KERNEL_LOG(context, "Node rejected: not a fully connected operation.\n");
       return false;
+    }
     
     // only supports RELU and NONE activations.
     const TfLiteFullyConnectedParams* params =
       reinterpret_cast<TfLiteFullyConnectedParams*>(node->builtin_data);
-    if (params->activation != kTfLiteActNone && params->activation != kTfLiteActRelu) return false;
+    if (params->activation != kTfLiteActNone && params->activation != kTfLiteActRelu) {
+      TF_LITE_KERNEL_LOG(context, "Node rejected: unsupported activation type %d.\n", params->activation);
+      return false;
+    }
     
     // Debug logging to show the activation type.
-    TF_LITE_KERNEL_LOG(context, "Activation type: %d", params->activation);
+    TF_LITE_KERNEL_LOG(context, "Activation type: %d\n", params->activation);
 
     // kTFLiteBuiltinFullyConnected input index are fixed:
     // 0 - input tensor, 1 - weights tensor, 2 - bias tensor (Bias is optional).
@@ -206,31 +371,128 @@ class FullyConnectedDelegate : public SimpleDelegateInterface {
     const TfLiteTensor* bias = node->inputs->size > 2 ? GetInput(context, node, 2) : nullptr;
     const TfLiteTensor* output = GetOutput(context, node, 0);
     
+    if (!input || !weights || !output) {
+      TF_LITE_KERNEL_LOG(context, "Node rejected: null tensor pointers detected.\n");
+      return false;
+    }
+
+    // Log tensor information for debugging
+    TF_LITE_KERNEL_LOG(context, "Tensor info - Input: dims=%p, allocation=%d\n", 
+                       input->dims, input->allocation_type);
+    TF_LITE_KERNEL_LOG(context, "Tensor info - Weights: dims=%p, allocation=%d\n", 
+                       weights->dims, weights->allocation_type);
+    TF_LITE_KERNEL_LOG(context, "Tensor info - Output: dims=%p, allocation=%d\n", 
+                       output->dims, output->allocation_type);
+    if (bias) {
+      TF_LITE_KERNEL_LOG(context, "Tensor info - Bias: dims=%p, allocation=%d\n", 
+                         bias->dims, bias->allocation_type);
+    }
+    
+    // Reject dynamic tensors - check for unknown dimensions
+    if (input->dims == nullptr || weights->dims == nullptr || output->dims == nullptr ||
+        (bias && bias->dims == nullptr)) {
+      TF_LITE_KERNEL_LOG(context, "Null tensor dimensions detected — rejecting.\n");
+      return false;
+    }
+
+    // Check for dynamic dimensions (negative values indicate dynamic dimensions)
+    bool has_dynamic_dims = false;
+    for (int i = 0; i < input->dims->size; ++i) {
+      if (input->dims->data[i] < 0) {
+        TF_LITE_KERNEL_LOG(context, "Dynamic input tensor dimension detected at index %d: %d\n", 
+                           i, input->dims->data[i]);
+        has_dynamic_dims = true;
+      }
+    }
+    for (int i = 0; i < weights->dims->size; ++i) {
+      if (weights->dims->data[i] < 0) {
+        TF_LITE_KERNEL_LOG(context, "Dynamic weights tensor dimension detected at index %d: %d\n", 
+                           i, weights->dims->data[i]);
+        has_dynamic_dims = true;
+      }
+    }
+    for (int i = 0; i < output->dims->size; ++i) {
+      if (output->dims->data[i] < 0) {
+        TF_LITE_KERNEL_LOG(context, "Dynamic output tensor dimension detected at index %d: %d\n", 
+                           i, output->dims->data[i]);
+        has_dynamic_dims = true;
+      }
+    }
+    if (bias) {
+      for (int i = 0; i < bias->dims->size; ++i) {
+        if (bias->dims->data[i] < 0) {
+          TF_LITE_KERNEL_LOG(context, "Dynamic bias tensor dimension detected at index %d: %d\n", 
+                             i, bias->dims->data[i]);
+          has_dynamic_dims = true;
+        }
+      }
+    }
+
+    if (has_dynamic_dims) {
+      TF_LITE_KERNEL_LOG(context, "Node rejected: dynamic tensor dimensions detected.\n");
+      return false;
+    }
+
+    // Also check allocation types as additional safety
+    if (input->allocation_type == kTfLiteDynamic ||
+        weights->allocation_type == kTfLiteDynamic ||
+        output->allocation_type == kTfLiteDynamic ||
+        (bias && bias->allocation_type == kTfLiteDynamic)) {
+      TF_LITE_KERNEL_LOG(context, "Dynamic tensor allocation detected — rejecting.\n");
+      return false;
+    }
+
+
     // Debug logging to show the shapes of input, weights, and output tensors.
     TF_LITE_KERNEL_LOG(context, 
-    "FullyConnectedDelegate: Input shape = [%d x %d], Weights shape = [%d x %d], Output shape = [%d x %d]",
+    "FullyConnectedDelegate: Input shape = [%d x %d], Weights shape = [%d x %d], Output shape = [%d x %d]\n",
     input->dims->data[0], input->dims->data[1],
     weights->dims->data[0], weights->dims->data[1],
     output->dims->data[0], output->dims->data[1]);
 
     // Check if input, weights, and output tensors are of rank 2.
     if (input->dims->size != 2 || weights->dims->size != 2 || output->dims->size != 2) {
+      TF_LITE_KERNEL_LOG(context, "Node rejected: tensor rank != 2 (input: %d, weights: %d, output: %d).\n",
+                        input->dims->size, weights->dims->size, output->dims->size);
       return false;
     }
 
     // Check if input, weights, and output tensors are of max size 32x32.
     // FPGA IP is designed to handle max 32x32 matrices.
     if (input->dims->data[1] > 32 || weights->dims->data[0] > 32 || 
-      weights->dims->data[1] > 32 || output->dims->data[1] > 32) return false;
+      weights->dims->data[1] > 32 || output->dims->data[1] > 32) {
+      TF_LITE_KERNEL_LOG(context, "Node rejected: tensor dimensions exceed 32x32 limit.\n");
+      return false;
+    }
 
     // Debug logging to show the types of input, weights, bias, and output tensors.
     TF_LITE_KERNEL_LOG(context,
-    "Input type: %d, Weights type: %d, Bias type: %d, Output type: %d",
+    "Input type: %d, Weights type: %d, Bias type: %d, Output type: %d\n",
     input->type, weights->type, bias ? bias->type : -1, output->type);
     
-    // Check if input, weights, and output tensors are of type int32.
-    return input->type == kTfLiteInt32 && weights->type == kTfLiteInt32 &&
-         (!bias || bias->type == kTfLiteInt32) && output->type == kTfLiteInt32;
+    // Check if input, weights, and output tensors are of supported types.
+    // This delegate supports only FLOAT32 tensors.
+    bool type_check = (input->type == kTfLiteFloat32 && 
+                       weights->type == kTfLiteFloat32 &&
+                       (!bias || bias->type == kTfLiteFloat32) && 
+                       output->type == kTfLiteFloat32);
+    
+    if (type_check) {
+      TF_LITE_KERNEL_LOG(context, "Tensor types: FLOAT32 (supported)\n");
+    } else {
+      TF_LITE_KERNEL_LOG(context, "Tensor types: Only FLOAT32 tensors supported. Detected types - Input: %d, Weights: %d, Bias: %d, Output: %d\n",
+                         input->type, weights->type, bias ? bias->type : -1, output->type);
+      TF_LITE_KERNEL_LOG(context, "  INT8 and INT32 support will be added later when low-level drivers are ready.\n");
+    }
+    
+    if (!type_check) {
+      TF_LITE_KERNEL_LOG(context, "Node rejected: unsupported tensor types.\n");
+      return false;
+    }
+    
+    TF_LITE_KERNEL_LOG(context, "Node accepted: fully connected operation meets all requirements.\n");
+    TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegate: Node support check complete ===========\n");
+    return true;
 }
 
   // Initialises the delegate. For FPGA, loading the FPGA bitstream can be triggered here.
@@ -251,8 +513,13 @@ class FullyConnectedDelegate : public SimpleDelegateInterface {
   }
 
   SimpleDelegateInterface::Options DelegateOptions() const override {
-    // Use default options.
-    return SimpleDelegateInterface::Options();
+    // Configure delegate partitioning options
+    // This allows the delegate to work with complex graphs by creating
+    // multiple partitions and selecting only the nodes it can support
+    SimpleDelegateInterface::Options options;
+    options.max_delegated_partitions = 100;  // Allow many partitions
+    options.min_nodes_per_partition = 1;     // Allow single-node partitions
+    return options;
   }
 
  private:
