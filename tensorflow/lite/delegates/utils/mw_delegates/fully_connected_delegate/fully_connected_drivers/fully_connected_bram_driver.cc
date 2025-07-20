@@ -11,10 +11,10 @@
 #define DEBUG_BRAM_DRIVER
 
 #ifdef DEBUG_BRAM_DRIVER
-    #define DEBUG_PRINT(fmt, ...) std::cout << fmt << __VA_ARGS__ << std::endl
+    #define DEBUG_PRINT(...) do { std::cout << __VA_ARGS__ << std::endl; } while(0)
     #define DEBUG_PRINT_SIMPLE(msg) std::cout << msg << std::endl
 #else
-    #define DEBUG_PRINT(fmt, ...)
+    #define DEBUG_PRINT(...)
     #define DEBUG_PRINT_SIMPLE(msg)
 #endif
 
