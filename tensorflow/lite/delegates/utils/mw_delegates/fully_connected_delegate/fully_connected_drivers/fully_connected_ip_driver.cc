@@ -13,7 +13,8 @@
 #ifdef ENABLE_IP_DEBUG
 #define IP_DEBUG_LOG(...)                           \
   do {                                              \
-    std::cout << __VA_ARGS__ << std::endl;         \
+    std::cout << __VA_ARGS__;                       \
+    std::cout << std::endl;                         \
   } while (false)
 #else  // ENABLE_IP_DEBUG
 #define ARGS_UNUSED(...) (void)sizeof(#__VA_ARGS__)
