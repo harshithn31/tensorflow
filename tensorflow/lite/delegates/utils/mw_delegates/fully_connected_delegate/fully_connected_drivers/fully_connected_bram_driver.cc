@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 // Debug control - comment out this line to disable debug logs
-#define ENABLE_BRAM_DEBUG
+// #define ENABLE_BRAM_DEBUG
 
 #ifdef ENABLE_BRAM_DEBUG
 #define BRAM_DEBUG_LOG(...)                          \

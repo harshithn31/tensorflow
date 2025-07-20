@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 // Debug control - comment out this line to disable debug logs
-#define ENABLE_IP_DEBUG
+// #define ENABLE_IP_DEBUG
 
 #ifdef ENABLE_IP_DEBUG
 #define IP_DEBUG_LOG(...)                           \
