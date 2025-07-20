@@ -7,6 +7,17 @@
 #include <cstring>
 #include <stdexcept>
 
+// Define this macro to enable debug prints
+#define DEBUG_BRAM_DRIVER
+
+#ifdef DEBUG_BRAM_DRIVER
+    #define DEBUG_PRINT(fmt, ...) std::cout << fmt << __VA_ARGS__ << std::endl
+    #define DEBUG_PRINT_SIMPLE(msg) std::cout << msg << std::endl
+#else
+    #define DEBUG_PRINT(fmt, ...)
+    #define DEBUG_PRINT_SIMPLE(msg)
+#endif
+
 #define BRAM_SIZE_INPUT 4096 // Size for input BRAM 4K
 #define BRAM_SIZE_WEIGHT 262144 // Size for weight BRAM 256K
 #define BRAM_SIZE_BIAS 4096 // Size for bias BRAM 4K
@@ -18,7 +29,7 @@ FpgaBramDriver::FpgaBramDriver() : bram_dev_mem_fd(-1),
     bram_mapped_bias_block(nullptr), 
     bram_mapped_output_block(nullptr) { // Size for weight BRAM
 
-        std::cout << "Size of float: " << sizeof(float) <<" bytes" << std::endl;
+        DEBUG_PRINT("Size of float: ", sizeof(float), " bytes");
 
         bram_input_base_address = 0x80010000;
         bram_weight_base_address = 0x80100000;
@@ -49,7 +60,7 @@ FpgaBramDriver::~FpgaBramDriver() {
 }
 
 void FpgaBramDriver::initialize_bram(bool clear_bram = false) {
-    std::cout << "Initializing BRAM..." << std::endl;
+    DEBUG_PRINT_SIMPLE("Initializing BRAM...");
 
     bram_dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
     if (bram_dev_mem_fd < 0) {
@@ -101,11 +112,11 @@ void FpgaBramDriver::initialize_bram(bool clear_bram = false) {
     //     std::memset(bram_mapped_bias_block, 0, max_supported_non_weight_dimension * sizeof(float)); // Clear bias BRAM
     //     std::memset(bram_mapped_output_block, 0, max_supported_non_weight_dimension * sizeof(float)); // Clear output BRAM
     // // }
-    std::cout << "BRAM initialization complete." << std::endl;
+    DEBUG_PRINT_SIMPLE("BRAM initialization complete.");
 }
 
 void FpgaBramDriver::write_to_bram(const std::string& bram_name, float* ptr, size_t num_elements) {
-    std::cout << "Writing to BRAM: " << bram_name << " (elements: " << num_elements << ")" << std::endl;
+    DEBUG_PRINT("Writing to BRAM: ", bram_name, " (elements: ", num_elements, ")");
 
     if (bram_address.find(bram_name) == bram_address.end()) {
         std::cerr << "Invalid BRAM name: " << bram_name << std::endl;
