@@ -313,8 +313,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         }
         auto end_time_input_to_bram = std::chrono::high_resolution_clock::now();
         auto duration_input_to_bram = std::chrono::duration_cast<std::chrono::microseconds>(end_time_input_to_bram - start_time_input_to_bram);
-        // printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to write input to BRAM: %lld microseconds\n", 
-        //        i, duration_input_to_bram.count());
+        printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to write input to BRAM: %lld microseconds\n", 
+               i, duration_input_to_bram.count());
         // DEBUG: Print what we're passing to BRAM
         // printf("[DELEGATE-DEBUG: Eval] Node %d - Calling write_input_to_bram with input_features: %d\n", i, input_features);
         TF_LITE_KERNEL_LOG(context, "Node %d - Successfully wrote input to BRAM (features: %d)\n", i, input_features);
@@ -333,8 +333,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
       }
       auto end_time_fpga_compute = std::chrono::high_resolution_clock::now();
       auto duration_fpga_compute = std::chrono::duration_cast<std::chrono::microseconds>(end_time_fpga_compute - start_time_fpga_compute);
-      // printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken for FPGA compute: %lld microseconds\n", 
-      //        i, duration_fpga_compute.count());
+      printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken for FPGA compute: %lld microseconds\n", 
+             i, duration_fpga_compute.count());
 
       TF_LITE_KERNEL_LOG(context, "Node %d - FPGA computation completed successfully\n", i);
       // Read output from output BRAM into output tensor (FLOAT32 only)
@@ -360,8 +360,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         }
         auto end_time_bram_read = std::chrono::high_resolution_clock::now();
         auto duration_bram_read = std::chrono::duration_cast<std::chrono::microseconds>(end_time_bram_read - start_time_bram_read);
-        // printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to read output from BRAM: %lld microseconds\n", 
-        //        i, duration_bram_read.count());
+        printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to read output from BRAM: %lld microseconds\n", 
+               i, duration_bram_read.count());
 
         TF_LITE_KERNEL_LOG(context, "Node %d - Successfully read output from BRAM (features: %d)\n", i, output_features);
       } else {
