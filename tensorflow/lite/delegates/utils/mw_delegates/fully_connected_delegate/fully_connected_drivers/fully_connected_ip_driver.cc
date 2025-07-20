@@ -7,16 +7,18 @@
 #include <cstring>
 #include <stdexcept>
 
-// Define this macro to enable debug prints
-#define DEBUG_IP_DRIVER
+// Debug control - comment out this line to disable debug logs
+#define ENABLE_IP_DEBUG
 
-#ifdef DEBUG_IP_DRIVER
-    #define DEBUG_PRINT(...) do { std::cout << __VA_ARGS__ << std::endl; } while(0)
-    #define DEBUG_PRINT_SIMPLE(msg) std::cout << msg << std::endl
-#else
-    #define DEBUG_PRINT(...)
-    #define DEBUG_PRINT_SIMPLE(msg)
-#endif
+#ifdef ENABLE_IP_DEBUG
+#define IP_DEBUG_LOG(...)                           \
+  do {                                              \
+    std::cout << __VA_ARGS__ << std::endl;         \
+  } while (false)
+#else  // ENABLE_IP_DEBUG
+#define ARGS_UNUSED(...) (void)sizeof(#__VA_ARGS__)
+#define IP_DEBUG_LOG(...) ARGS_UNUSED(__VA_ARGS__)
+#endif  // ENABLE_IP_DEBUG
 
 #define FULLY_CONNECTED_IP_DRIVER_TEST_MAIN
 
@@ -40,7 +42,7 @@ FpgaIpDriver::~FpgaIpDriver() {
 }
 
 void FpgaIpDriver::initialize_fpga() {
-    DEBUG_PRINT_SIMPLE("Initializing FPGA...");
+    IP_DEBUG_LOG("Initializing FPGA...");
 
     dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
     if (dev_mem_fd < 0) {
@@ -60,7 +62,7 @@ void FpgaIpDriver::initialize_fpga() {
     ip_address["output_size"] = ip_output_size_offset;
     ip_address["control_register"] = ip_control_register_offset;
 
-    DEBUG_PRINT_SIMPLE("FPGA initialization complete.");
+    IP_DEBUG_LOG("FPGA initialization complete.");
 }
 
 void FpgaIpDriver::write_to_fpga(const std::string& reg_name, uint32_t value) {
@@ -78,7 +80,7 @@ void FpgaIpDriver::write_to_fpga(const std::string& reg_name, uint32_t value) {
     );
     *ptr = value;
 
-    DEBUG_PRINT("Wrote 0x", std::hex, value, " to FPGA register [", reg_name, "] at offset 0x", offset);
+    IP_DEBUG_LOG("Wrote 0x", std::hex, value, " to FPGA register [", reg_name, "] at offset 0x", offset);
 }
 
 int32_t FpgaIpDriver::read_from_fpga(const std::string& reg_name) {
