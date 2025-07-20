@@ -4,6 +4,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <chrono>
 
 #include "tensorflow/lite/c/c_api_types.h"
 #include "tensorflow/lite/c/common.h"
@@ -304,10 +305,16 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         TF_LITE_KERNEL_LOG(context, "Node %d - Input tensor data address: %p\n", i, input_tensor.data.f);
         printf("[DELEGATE-DEBUG: Eval] Node %d: input_tensor.data.f address: %p, input_features: %d\n", 
                i, input_tensor.data.f, input_features);
+
+        auto start_time_input_to_bram = std::chrono::high_resolution_clock::now();
         if (fpga_bram_driver_->write_input_to_bram(input_tensor.data.f, input_features)) {
           TF_LITE_KERNEL_LOG(context, "Eval failed: failed to write FLOAT32 input to BRAM for node %d.\n", i);
           return kTfLiteError;
         }
+        auto end_time_input_to_bram = std::chrono::high_resolution_clock::now();
+        auto duration_input_to_bram = std::chrono::duration_cast<std::chrono::microseconds>(end_time_input_to_bram - start_time_input_to_bram);
+        printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to write input to BRAM: %lld microseconds\n", 
+               i, duration_input_to_bram.count());
         // DEBUG: Print what we're passing to BRAM
         printf("[DELEGATE-DEBUG: Eval] Node %d - Calling write_input_to_bram with input_features: %d\n", i, input_features);
         TF_LITE_KERNEL_LOG(context, "Node %d - Successfully wrote input to BRAM (features: %d)\n", i, input_features);
@@ -318,10 +325,17 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
       // Trigger FPGA execution for this node
       printf("[DELEGATE-DEBUG: Eval] Node %d - Calling fpga_compute with input_features: %d, output_features: %d\n", i, input_features, output_features);
       fflush(stdout);
+
+      auto start_time_fpga_compute = std::chrono::high_resolution_clock::now();
       if (fpga_ip_driver_->fpga_compute(input_features, output_features)) {
         TF_LITE_KERNEL_LOG(context, "Eval failed: FPGA inference trigger failed for node %d.\n", i);
         return kTfLiteError;
       }
+      auto end_time_fpga_compute = std::chrono::high_resolution_clock::now();
+      auto duration_fpga_compute = std::chrono::duration_cast<std::chrono::microseconds>(end_time_fpga_compute - start_time_fpga_compute);
+      printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken for FPGA compute: %lld microseconds\n", 
+             i, duration_fpga_compute.count());
+
       TF_LITE_KERNEL_LOG(context, "Node %d - FPGA computation completed successfully\n", i);
       // Read output from output BRAM into output tensor (FLOAT32 only)
       if (output_tensor.type == kTfLiteFloat32) {
@@ -339,10 +353,16 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         printf("[DELEGATE-DEBUG: Eval] Node %d: output_tensor.data.f address: %p, output_features: %d\n", 
                i, output_tensor.data.f, output_features);
         fflush(stdout);
+        auto start_time_bram_read = std::chrono::high_resolution_clock::now();
         if (fpga_bram_driver_->read_output_from_bram(output_tensor.data.f, output_features)) {
           TF_LITE_KERNEL_LOG(context, "Eval failed: failed to read FLOAT32 output from BRAM for node %d.\n", i);
           return kTfLiteError;
         }
+        auto end_time_bram_read = std::chrono::high_resolution_clock::now();
+        auto duration_bram_read = std::chrono::duration_cast<std::chrono::microseconds>(end_time_bram_read - start_time_bram_read);
+        printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to read output from BRAM: %lld microseconds\n", 
+               i, duration_bram_read.count());
+               
         TF_LITE_KERNEL_LOG(context, "Node %d - Successfully read output from BRAM (features: %d)\n", i, output_features);
       } else {
         TF_LITE_KERNEL_LOG(context, "Eval failed: unsupported output tensor type: %d for node %d. Only FLOAT32 supported.\n", output_tensor.type, i);
