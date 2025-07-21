@@ -83,7 +83,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
   // It should not be used for any heavy computation or resource allocation.
   TfLiteStatus Init(TfLiteContext* context,
                     const TfLiteDelegateParams* params) override {
-    TF_LITE_KERNEL_LOG(context, "======== In FullyConnectedDelegateKernel::Init =========\n");
+    // TF_LITE_KERNEL_LOG(context, "======== In FullyConnectedDelegateKernel::Init =========\n");
     // printf("[DELEGATE-DEBUG: Init] ========In FullyConnectedDelegateKernel::Init===========\n");
     inputs_.resize(params->nodes_to_replace->size);
     outputs_.resize(params->nodes_to_replace->size);
@@ -108,8 +108,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
       outputs_[i].push_back(delegate_node->outputs->data[0]);
       builtin_code_[i] = delegate_node_registration->builtin_code;
       // Add debug logging
-      TF_LITE_KERNEL_LOG(context, "Node %d Input_Tidx=%d; Weights_Tidx=%d; Bias_Tidx=%d; output_Tidx=%d\n",
-                         i, inputs_[i][0], weights_[i][0], biases_[i][0], outputs_[i][0]);
+      // TF_LITE_KERNEL_LOG(context, "Node %d Input_Tidx=%d; Weights_Tidx=%d; Bias_Tidx=%d; output_Tidx=%d\n",
+      //                    i, inputs_[i][0], weights_[i][0], biases_[i][0], outputs_[i][0]);
       // printf("[DELEGATE-DEBUG: Init] Node %d Input_Tidx=%d; Weights_Tidx=%d; Bias_Tidx=%d; output_Tidx=%d\n",
       //        i, inputs_[i][0], weights_[i][0], biases_[i][0], outputs_[i][0]);
     }
@@ -119,10 +119,10 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
       bool clear_bram = false;
       fpga_bram_driver_->initialize_bram(clear_bram);
     } catch (const std::exception& e) {
-      TF_LITE_KERNEL_LOG(context, "BRAM initialization failed: %s\n", e.what());
+      // TF_LITE_KERNEL_LOG(context, "BRAM initialization failed: %s\n", e.what());
       return kTfLiteError;
     }
-    TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Init completed successfully =========\n\n\n");
+    // TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Init completed successfully =========\n\n\n");
     // printf("[DELEGATE-DEBUG: Init] FullyConnectedDelegateKernel::Init completed successfully\n\n\n");
     return kTfLiteOk;
   }
@@ -133,11 +133,11 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
   // It should only be used to prepare the delegate for execution.
   // It is called after Init and before Eval.
   TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) override {
-    TF_LITE_KERNEL_LOG(context, "======== In FullyConnectedDelegateKernel::Prepare =========\n");
+    // TF_LITE_KERNEL_LOG(context, "======== In FullyConnectedDelegateKernel::Prepare =========\n");
     // printf("[DELEGATE-DEBUG: Prepare] In FullyConnectedDelegateKernel::Prepare\n");
     int node_count = inputs_.size();
     int out_tid = 0;
-    TF_LITE_KERNEL_LOG(context, "Preparing %d nodes in partition\n\n", node_count);
+    // TF_LITE_KERNEL_LOG(context, "Preparing %d nodes in partition\n\n", node_count);
     // printf("[DELEGATE-DEBUG: Prepare] Preparing %d nodes in partition\n", node_count);
     for(int i = 0; i < node_count; i++){
       // Safety check for tensor indices
@@ -145,8 +145,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         TF_LITE_KERNEL_LOG(context, "Error: Empty tensor indices for node %d\n", i);
         return kTfLiteError;
       }
-      TF_LITE_KERNEL_LOG(context, "Processing node %d with Input_Tidx=%d, Weights_Tidx=%d, Output_Tidx=%d\n",
-                         i, inputs_[i][0], weights_[i][0], outputs_[i][0]);
+      // TF_LITE_KERNEL_LOG(context, "Processing node %d with Input_Tidx=%d, Weights_Tidx=%d, Output_Tidx=%d\n",
+      //                    i, inputs_[i][0], weights_[i][0], outputs_[i][0]);
       // printf("[DELEGATE-DEBUG: Prepare] Processing node %d with Input_Tidx=%d, Weights_Tidx=%d, Output_Tidx=%d\n",
       //        i, inputs_[i][0], weights_[i][0], outputs_[i][0]);
       // Get tensors for this node using standard TensorFlow Lite API
@@ -158,7 +158,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
       const TfLiteTensor* bias_tensor = nullptr;
       if (node_has_bias) {
         bias_tensor = &context->tensors[biases_[i][0]];
-        TF_LITE_KERNEL_LOG(context, "Node %d has bias tensor at index %d\n", i, biases_[i][0]);
+        // TF_LITE_KERNEL_LOG(context, "Node %d has bias tensor at index %d\n", i, biases_[i][0]);
         // printf("[DELEGATE-DEBUG: Prepare] Node %d has bias tensor at index %d\n", i, biases_[i][0]);
       }
       // Write weights to BRAM (FLOAT32 only)
@@ -167,7 +167,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
           TF_LITE_KERNEL_LOG(context, "Prepare failed: failed to write FLOAT32 weights to BRAM for node %d.\n", i);
           return kTfLiteError;
         }
-        TF_LITE_KERNEL_LOG(context, "FLOAT32 weights written to BRAM for node %d.\n", i);
+        // TF_LITE_KERNEL_LOG(context, "FLOAT32 weights written to BRAM for node %d.\n", i);
       } else {
         TF_LITE_KERNEL_LOG(context, "Prepare failed: unsupported weights tensor type: %d. Only FLOAT32 supported.\n", weights_tensor->type);
         return kTfLiteError;
@@ -180,19 +180,19 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
             TF_LITE_KERNEL_LOG(context, "Prepare failed: failed to write FLOAT32 bias to BRAM for node %d.\n", i);
             return kTfLiteError;
           }
-          TF_LITE_KERNEL_LOG(context, "FLOAT32 bias written to BRAM for node %d.\n", i);
+          // TF_LITE_KERNEL_LOG(context, "FLOAT32 bias written to BRAM for node %d.\n", i);
         } else {
           TF_LITE_KERNEL_LOG(context, "Prepare failed: unsupported bias tensor type: %d. Only FLOAT32 supported.\n", bias_tensor->type);
           return kTfLiteError;
         }
-        TF_LITE_KERNEL_LOG(context, "Weights and bias successfully written to BRAM for node %d.\n", i);
+        // TF_LITE_KERNEL_LOG(context, "Weights and bias successfully written to BRAM for node %d.\n", i);
       } else {
-        TF_LITE_KERNEL_LOG(context, "Node %d has no bias tensor.\n", i);
+        // TF_LITE_KERNEL_LOG(context, "Node %d has no bias tensor.\n", i);
       }
       // Ensure output tensor is properly set up for TensorFlow Lite to allocate
       // Log tensor allocation info
-      TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor allocation: data=%p, bytes=%d, allocation_type=%d\n", 
-                         i, output_tensor->data.data, output_tensor->bytes, output_tensor->allocation_type);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor allocation: data=%p, bytes=%d, allocation_type=%d\n", 
+      //                    i, output_tensor->data.data, output_tensor->bytes, output_tensor->allocation_type);
       // printf("[DELEGATE-DEBUG: Prepare] Node %d - Output tensor allocation: data=%p, bytes=%d, allocation_type=%d\n", 
       //        i, output_tensor->data.data, output_tensor->bytes, output_tensor->allocation_type);
       // Resize output tensor to ensure TensorFlow Lite allocates it properly
@@ -215,24 +215,24 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         auto temp_out_tensor_status = context->ResizeTensor(
             context, temp_out_tensor, temp_out_tensor_size);
         if (temp_out_tensor_status != kTfLiteOk) return temp_out_tensor_status;
-        TF_LITE_KERNEL_LOG(context, "Node %d - Successfully prepared output tensor for allocation\n", i);
+        // TF_LITE_KERNEL_LOG(context, "Node %d - Successfully prepared output tensor for allocation\n", i);
         // Log tensor shapes for debugging
         if (node_has_bias && bias_tensor){
-          TF_LITE_KERNEL_LOG(context, "Node %d - Input_Shape: [%d, %d], Weights_Shape: [%d, %d], Bias_Shape: [%d], Output_Shape: [%d, %d]\n\n",
-                             i, input_tensor->dims->data[0], input_tensor->dims->data[1],
-                             weights_tensor->dims->data[0], weights_tensor->dims->data[1],
-                             bias_tensor->dims->data[0],
-                             output_tensor->dims->data[0], output_tensor->dims->data[1]);
+          // TF_LITE_KERNEL_LOG(context, "Node %d - Input_Shape: [%d, %d], Weights_Shape: [%d, %d], Bias_Shape: [%d], Output_Shape: [%d, %d]\n\n",
+          //                    i, input_tensor->dims->data[0], input_tensor->dims->data[1],
+          //                    weights_tensor->dims->data[0], weights_tensor->dims->data[1],
+          //                    bias_tensor->dims->data[0],
+          //                    output_tensor->dims->data[0], output_tensor->dims->data[1]);
           // printf("[DELEGATE-DEBUG: Prepare] Node %d - Input_Shape: [%d, %d], Weights_Shape: [%d, %d], Bias_Shape: [%d], Output_Shape: [%d, %d]\n\n",
           //        i, input_tensor->dims->data[0], input_tensor->dims->data[1],
           //        weights_tensor->dims->data[0], weights_tensor->dims->data[1],
           //        bias_tensor->dims->data[0],
           //        output_tensor->dims->data[0], output_tensor->dims->data[1]);
         } else {
-          TF_LITE_KERNEL_LOG(context, "Node %d - Input_Shape: [%d, %d], Weights_Shape: [%d, %d], Output_Shape: [%d, %d]\n\n",
-                             i, input_tensor->dims->data[0], input_tensor->dims->data[1],
-                             weights_tensor->dims->data[0], weights_tensor->dims->data[1],
-                             output_tensor->dims->data[0], output_tensor->dims->data[1]);
+          // TF_LITE_KERNEL_LOG(context, "Node %d - Input_Shape: [%d, %d], Weights_Shape: [%d, %d], Output_Shape: [%d, %d]\n\n",
+          //                    i, input_tensor->dims->data[0], input_tensor->dims->data[1],
+          //                    weights_tensor->dims->data[0], weights_tensor->dims->data[1],
+          //                    output_tensor->dims->data[0], output_tensor->dims->data[1]);
           // printf("[DELEGATE-DEBUG: Prepare] Node %d - Input_Shape: [%d, %d], Weights_Shape: [%d, %d], Output_Shape: [%d, %d]\n\n",
           //        i, input_tensor->dims->data[0], input_tensor->dims->data[1],
           //        weights_tensor->dims->data[0], weights_tensor->dims->data[1],
@@ -240,15 +240,15 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         }
       }
     }
-    TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Prepare completed successfully =========\n\n\n");
+    // TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Prepare completed successfully =========\n\n\n");
     // printf("[DELEGATE-DEBUG: Prepare] ========FullyConnectedDelegateKernel::Prepare completed successfully========\n\n\n");
     return kTfLiteOk;
   }
 
   TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) override {
-    TF_LITE_KERNEL_LOG(context, "======== In FullyConnectedDelegateKernel::Eval =========\n");
+    // TF_LITE_KERNEL_LOG(context, "======== In FullyConnectedDelegateKernel::Eval =========\n");
     // printf("[DELEGATE-DEBUG: Eval] =============In FullyConnectedDelegateKernel::Eval=================\n");
-    TF_LITE_KERNEL_LOG(context, "Evaluating %d nodes in partition\n", inputs_.size());
+    // TF_LITE_KERNEL_LOG(context, "Evaluating %d nodes in partition\n", inputs_.size());
     // printf("[DELEGATE-DEBUG: Eval] Evaluating %d nodes in partition\n", inputs_.size());
     // Process each node in the partition
     for(int i = 0; i < inputs_.size(); i++) {
@@ -257,8 +257,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         TF_LITE_KERNEL_LOG(context, "Error: Empty tensor indices for node %d\n", i);
         return kTfLiteError;
       }
-      TF_LITE_KERNEL_LOG(context, "Evaluating node %d with input_Tidx=%d, output_Tidx=%d\n",
-                         i, inputs_[i][0], outputs_[i][0]);
+      // TF_LITE_KERNEL_LOG(context, "Evaluating node %d with input_Tidx=%d, output_Tidx=%d\n",
+      //                    i, inputs_[i][0], outputs_[i][0]);
       // printf("[DELEGATE-DEBUG: Eval] Evaluating node %d with input_Tidx=%d, output_Tidx=%d\n",
       //        i, inputs_[i][0], outputs_[i][0]);
       const TfLiteTensor& input_tensor = context->tensors[inputs_[i][0]];
@@ -277,9 +277,9 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         return kTfLiteError;
       }
       // Debug logging for tensor sizes
-      TF_LITE_KERNEL_LOG(context, "Node %d - Tensor sizes - Input: %d, Output: %d\n", i, input_size, output_size);
-      TF_LITE_KERNEL_LOG(context, "Node %d - Input tensor shape: [%d, %d]\n", i, input_tensor.dims->data[0], input_tensor.dims->data[1]);
-      TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor shape: [%d, %d]\n", i, output_tensor.dims->data[0], output_tensor.dims->data[1]);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Tensor sizes - Input: %d, Output: %d\n", i, input_size, output_size);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Input tensor shape: [%d, %d]\n", i, input_tensor.dims->data[0], input_tensor.dims->data[1]);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor shape: [%d, %d]\n", i, output_tensor.dims->data[0], output_tensor.dims->data[1]);
       // printf("[DELEGATE-DEBUG: Eval] Node %d - Tensor sizes - Input: %d, Output: %d\n", i, input_size, output_size);
       // printf("[DELEGATE-DEBUG: Eval] Node %d - Input tensor shape: [%d, %d]\n", 
       //        i, input_tensor.dims->data[0], input_tensor.dims->data[1]);
