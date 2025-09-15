@@ -333,8 +333,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
       }
       auto end_time_fpga_compute = std::chrono::high_resolution_clock::now();
       auto duration_fpga_compute = std::chrono::duration_cast<std::chrono::microseconds>(end_time_fpga_compute - start_time_fpga_compute);
-      printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken for FPGA compute: %lld microseconds\n", 
-             i, duration_fpga_compute.count());
+      // printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken for FPGA compute: %lld microseconds\n", 
+      //        i, duration_fpga_compute.count());
 
       // TF_LITE_KERNEL_LOG(context, "Node %d - FPGA computation completed successfully\n", i);
       // Read output from output BRAM into output tensor (FLOAT32 only)
@@ -360,8 +360,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         }
         auto end_time_bram_read = std::chrono::high_resolution_clock::now();
         auto duration_bram_read = std::chrono::duration_cast<std::chrono::microseconds>(end_time_bram_read - start_time_bram_read);
-        printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to read output from BRAM: %lld microseconds\n", 
-               i, duration_bram_read.count());
+        // printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to read output from BRAM: %lld microseconds\n", 
+        //        i, duration_bram_read.count());
 
         // TF_LITE_KERNEL_LOG(context, "Node %d - Successfully read output from BRAM (features: %d)\n", i, output_features);
       } else {
