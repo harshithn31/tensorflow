@@ -313,8 +313,8 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         }
         auto end_time_input_to_bram = std::chrono::high_resolution_clock::now();
         auto duration_input_to_bram = std::chrono::duration_cast<std::chrono::microseconds>(end_time_input_to_bram - start_time_input_to_bram);
-        printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to write input to BRAM: %lld microseconds\n", 
-               i, duration_input_to_bram.count());
+        // printf("[DELEGATE-DEBUG: Eval] Node %d - Time taken to write input to BRAM: %lld microseconds\n", 
+        //        i, duration_input_to_bram.count());
         // DEBUG: Print what we're passing to BRAM
         // printf("[DELEGATE-DEBUG: Eval] Node %d - Calling write_input_to_bram with input_features: %d\n", i, input_features);
         // TF_LITE_KERNEL_LOG(context, "Node %d - Successfully wrote input to BRAM (features: %d)\n", i, input_features);
