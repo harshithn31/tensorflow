@@ -4,7 +4,16 @@
 #include <memory>
 #include "tensorflow/lite/core/c/common.h"
 
+static bool execution_time_debug_mode = true;
 static bool my_debug_mode = false;
+
+#define EXECUTION_TIME_DEBUG_LOG(...) \
+    do { \
+        if (execution_time_debug_mode) { \
+            printf(__VA_ARGS__); \
+            fflush(stdout); \
+        } \
+    } while(0)
 
 #define MY_DEBUG_LOG(...) \
     do { \
