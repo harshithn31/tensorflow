@@ -4,6 +4,16 @@
 #include <memory>
 #include "tensorflow/lite/core/c/common.h"
 
+bool debug_mode = true;
+
+#define DEBUG_LOG(...) \
+    do { \
+        if (debug_mode) { \
+            printf(__VA_ARGS__); \
+            fflush(stdout); \
+        } \
+    } while(0)
+
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
