@@ -5,6 +5,17 @@
 #include <string>
 #include <map>
 
+static bool my_debug_mode_ip = false;
+
+#define MY_DEBUG_LOG_IP(...) \
+    do { \
+        if (my_debug_mode_ip) { \
+            printf(__VA_ARGS__); \
+            fflush(stdout); \
+        } \
+    } while(0)
+
+
 class FpgaIpDriver {
 private:
     int dev_mem_fd;

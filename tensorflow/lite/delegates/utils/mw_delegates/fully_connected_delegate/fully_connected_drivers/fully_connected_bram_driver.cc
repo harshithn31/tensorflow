@@ -18,7 +18,7 @@ FpgaBramDriver::FpgaBramDriver() : bram_dev_mem_fd(-1),
     bram_mapped_bias_block(nullptr), 
     bram_mapped_output_block(nullptr) { // Size for weight BRAM
 
-        std::cout << "Size of float: " << sizeof(float) <<" bytes" << std::endl;
+        MY_DEBUG_LOG_BRAM("Size of float: %d bytes\n", sizeof(float));
 
         bram_input_base_address = 0x80010000;
         bram_weight_base_address = 0x80100000;
@@ -49,7 +49,7 @@ FpgaBramDriver::~FpgaBramDriver() {
 }
 
 void FpgaBramDriver::initialize_bram(bool clear_bram = false) {
-    std::cout << "Initializing BRAM..." << std::endl;
+    MY_DEBUG_LOG_BRAM("Initializing BRAM...\n");
 
     bram_dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
     if (bram_dev_mem_fd < 0) {
@@ -94,21 +94,21 @@ void FpgaBramDriver::initialize_bram(bool clear_bram = false) {
 
     //TODO: BUS error occurs here when clearing BRAM
     // // if (clear_bram){
-    //     std::cout << "Clearing BRAM..." << std::endl;
+    //     MY_DEBUG_LOG_BRAM("Clearing BRAM...\n");
     //     // Clear initial values in BRAMs
     //     std::memset(bram_mapped_input_block, 0, max_supported_non_weight_dimension * sizeof(float)); // Clear input BRAM
     //     std::memset(bram_mapped_weight_block, 0, max_supported_weight_dimension * sizeof(float)); // Clear weight BRAM
     //     std::memset(bram_mapped_bias_block, 0, max_supported_non_weight_dimension * sizeof(float)); // Clear bias BRAM
     //     std::memset(bram_mapped_output_block, 0, max_supported_non_weight_dimension * sizeof(float)); // Clear output BRAM
     // // }
-    std::cout << "BRAM initialization complete." << std::endl;
+    MY_DEBUG_LOG_BRAM("BRAM initialization complete.\n");
 }
 
 void FpgaBramDriver::write_to_bram(const std::string& bram_name, float* ptr, size_t num_elements) {
-    std::cout << "Writing to BRAM: " << bram_name << " (elements: " << num_elements << ")" << std::endl;
+    MY_DEBUG_LOG_BRAM("Writing to BRAM: %s (elements: %zu)\n", bram_name.c_str(), num_elements);
 
     if (bram_address.find(bram_name) == bram_address.end()) {
-        std::cerr << "Invalid BRAM name: " << bram_name << std::endl;
+        MY_DEBUG_LOG_BRAM("Invalid BRAM name: %s\n", bram_name.c_str());
         return;
     }
 
@@ -130,16 +130,16 @@ void FpgaBramDriver::write_to_bram(const std::string& bram_name, float* ptr, siz
     }
 
     if (ptr != nullptr) {
-        std::cout << "bram_ptr address: 0x" << std::hex << bram_ptr << " ptr address: 0x" << std::hex << ptr << std::endl;
+        MY_DEBUG_LOG_BRAM("bram_ptr address: 0x%lx ptr address: 0x%lx\n", reinterpret_cast<uintptr_t>(bram_ptr), reinterpret_cast<uintptr_t>(ptr));
         std::memcpy(bram_ptr, ptr, bytes_to_write);
     }
-    std::cout << "Data written to BRAM: " << bram_name << " successfully." << std::endl;
+    MY_DEBUG_LOG_BRAM("Data written to BRAM: %s successfully.\n", bram_name.c_str());
 }
 float* FpgaBramDriver::read_from_bram(const std::string& bram_name) {
-    std::cout << "Reading from BRAM: " << bram_name << std::endl;
+    MY_DEBUG_LOG_BRAM("Reading from BRAM: %s\n", bram_name.c_str());
 
     if (bram_address.find(bram_name) == bram_address.end()) {
-        std::cerr << "Invalid BRAM name: " << bram_name << std::endl;
+        MY_DEBUG_LOG_BRAM("Invalid BRAM name: %s\n", bram_name.c_str());
         return nullptr;
     }
 
@@ -153,45 +153,44 @@ float* FpgaBramDriver::read_from_bram(const std::string& bram_name) {
 }
 
 int FpgaBramDriver::write_weights_to_bram(const float* weights, const int size) {
-    std::cout << "size of weights: " << size << std::endl;
+    MY_DEBUG_LOG_BRAM("size of weights: %d\n", size);
     if (size > max_supported_weight_dimension) {
-        std::cerr << "Error: Size exceeds weight BRAM capacity." << std::endl;
+        MY_DEBUG_LOG_BRAM("Error: Size exceeds weight BRAM capacity.\n");
         return -1;
     }
     write_to_bram("weight_bram", const_cast<float*>(weights), size);
     return 0;
 }
 int FpgaBramDriver::write_bias_to_bram(const float* bias, const int size) {
-
-    std::cout << "size of bias: " << size << std::endl;
+    MY_DEBUG_LOG_BRAM("size of bias: %d\n", size);
     if (size > max_supported_non_weight_dimension) {
-        std::cerr << "Error: Size exceeds bias BRAM capacity." << std::endl;
+        MY_DEBUG_LOG_BRAM("Error: Size exceeds bias BRAM capacity.\n");
         return -1;
     }
     write_to_bram("bias_bram", const_cast<float*>(bias), size);
     return 0;
 }
 int FpgaBramDriver::clear_output_bram() {
-    std::cout << "Clearing output BRAM..." << std::endl;
+    MY_DEBUG_LOG_BRAM("Clearing output BRAM...\n");
     if (bram_address.find("output_bram") == bram_address.end()) {
-        std::cerr << "Invalid BRAM name: output_bram" << std::endl;
+        MY_DEBUG_LOG_BRAM("Invalid BRAM name: output_bram\n");
         return -1;
     }
     void* bram_ptr = bram_address["output_bram"];
     if (bram_ptr == nullptr) {
-        std::cerr << "BRAM pointer is null for: output_bram" << std::endl;
+        MY_DEBUG_LOG_BRAM("BRAM pointer is null for: output_bram\n");
         return -1;
     }
     std::memset(bram_ptr, 0, max_supported_non_weight_dimension * sizeof(float)); // Clear the output BRAM
-    std::cout << "Output BRAM cleared." << std::endl;
+    MY_DEBUG_LOG_BRAM("Output BRAM cleared.\n");
     return 0;
 }
 
 int FpgaBramDriver::write_input_to_bram(const float* input, const int size) {
-    std::cout << "size of input: " << size << std::endl;
+    MY_DEBUG_LOG_BRAM("size of input: %d\n", size);
 
     if (size > max_supported_non_weight_dimension) {
-        std::cerr << "Error: Size exceeds input BRAM capacity." << std::endl;
+        MY_DEBUG_LOG_BRAM("Error: Size exceeds input BRAM capacity.\n");
         return -1;
     }
     write_to_bram("input_bram", const_cast<float*>(input), size);
@@ -205,11 +204,11 @@ int FpgaBramDriver::read_output_from_bram(float* output, const int size) {
     }
     
     float* bram_output = read_from_bram("output_bram");
-    std::cout << "Entering If : going to memcpy" << std::endl;
+    MY_DEBUG_LOG_BRAM("Entering If : going to memcpy\n");
     if (bram_output) {
-        std::cout << "output address: 0x"<<std::hex << output << " bram_output address: 0x"<<std::hex << bram_output << std::endl;
+        MY_DEBUG_LOG_BRAM("output address: 0x%lx bram_output address: 0x%lx\n", reinterpret_cast<uintptr_t>(output), reinterpret_cast<uintptr_t>(bram_output));
         std::memcpy(output, bram_output, size * sizeof(float));
-        std::cout << "memcpy successful" << std::endl;
+        MY_DEBUG_LOG_BRAM("memcpy successful\n");
         return 0;
     }
     return -1;
@@ -242,10 +241,10 @@ int FpgaBramDriver::test_read_weights_bram(float* output, const int size) {
 }
 
 int FpgaBramDriver::test_read_bias_bram(float* output, const int size) {
-    std::cout << "Reading from BRAM: bias_bram (size = " << size << ")" << std::endl;
+    MY_DEBUG_LOG_BRAM("Reading from BRAM: bias_bram (size = %d)\n", size);
 
     if (size > max_supported_non_weight_dimension) {
-        std::cerr << "Error: Size exceeds bias BRAM capacity." << std::endl;
+        MY_DEBUG_LOG_BRAM("Error: Size exceeds bias BRAM capacity.\n");
         return -1;
     }
 

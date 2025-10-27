@@ -5,6 +5,17 @@
 #include <string>
 #include <map>
 
+static bool my_debug_mode_bram = false;
+
+#define MY_DEBUG_LOG_BRAM(...) \
+    do { \
+        if (my_debug_mode_bram) { \
+            printf(__VA_ARGS__); \
+            fflush(stdout); \
+        } \
+    } while(0)
+
+
 class FpgaBramDriver {
 private:
     int bram_dev_mem_fd;

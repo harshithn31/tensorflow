@@ -29,11 +29,11 @@ FpgaIpDriver::~FpgaIpDriver() {
 }
 
 void FpgaIpDriver::initialize_fpga() {
-    std::cout << "Initializing FPGA..." << std::endl;
+    MY_DEBUG_LOG_IP("Initializing FPGA...\n");
 
     dev_mem_fd = open("/dev/mem", O_RDWR | O_SYNC);
     if (dev_mem_fd < 0) {
-        std::cerr << "Failed to open /dev/mem" << std::endl;
+        MY_DEBUG_LOG_IP("Failed to open /dev/mem\n");
         return;
     }
 
@@ -49,7 +49,7 @@ void FpgaIpDriver::initialize_fpga() {
     ip_address["output_size"] = ip_output_size_offset;
     ip_address["control_register"] = ip_control_register_offset;
 
-    std::cout << "FPGA initialization complete." << std::endl;
+    MY_DEBUG_LOG_IP("FPGA initialization complete.\n");
 }
 
 void FpgaIpDriver::write_to_fpga(const std::string& reg_name, uint32_t value) {
@@ -67,9 +67,7 @@ void FpgaIpDriver::write_to_fpga(const std::string& reg_name, uint32_t value) {
     );
     *ptr = value;
 
-    std::cout << "Wrote 0x" << std::hex << value
-              << " to FPGA register [" << reg_name << "] at offset 0x"
-              << offset << std::endl;
+    MY_DEBUG_LOG_IP("Wrote 0x%X to FPGA register [%s] at offset 0x%X\n", value, reg_name.c_str(), offset);
 }
 
 int32_t FpgaIpDriver::read_from_fpga(const std::string& reg_name) {
