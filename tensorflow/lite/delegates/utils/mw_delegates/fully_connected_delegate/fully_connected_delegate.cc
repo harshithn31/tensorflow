@@ -1,6 +1,7 @@
 #include "tensorflow/lite/delegates/utils/mw_delegates/fully_connected_delegate/fully_connected_delegate.h"
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -312,7 +313,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
           TF_LITE_KERNEL_LOG(context, "Eval failed: failed to write FLOAT32 input to BRAM for node %d.\n", i);
           return kTfLiteError;
         }
-        auto end_time =  ̦std::chrono::high_resolution_clock::now();
+        auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> write_duration = end_time - start_time;
         EXECUTION_TIME_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Time taken to write input to BRAM: %.3f ms\n", i, write_duration.count());
 
@@ -365,7 +366,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         auto end_time = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> read_duration = end_time - start_time;
         EXECUTION_TIME_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Time taken to read output from BRAM: %.3f ms\n", i, read_duration.count());
-        
+
 
         TF_LITE_KERNEL_LOG(context, "Node %d - Successfully read output from BRAM (features: %d)\n", i, output_features);
       } else {
