@@ -4,11 +4,11 @@
 #include <memory>
 #include "tensorflow/lite/core/c/common.h"
 
-bool debug_mode = true;
+bool my_debug_mode = true;
 
-#define DEBUG_LOG(...) \
+#define MY_DEBUG_LOG(...) \
     do { \
-        if (debug_mode) { \
+        if (my_debug_mode) { \
             printf(__VA_ARGS__); \
             fflush(stdout); \
         } \
