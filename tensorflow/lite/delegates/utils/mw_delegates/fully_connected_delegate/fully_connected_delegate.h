@@ -4,7 +4,7 @@
 #include <memory>
 #include "tensorflow/lite/core/c/common.h"
 
-static bool my_debug_mode = true;
+static bool my_debug_mode = false;
 
 #define MY_DEBUG_LOG(...) \
     do { \
