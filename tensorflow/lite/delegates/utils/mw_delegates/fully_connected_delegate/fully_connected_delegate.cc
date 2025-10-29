@@ -252,6 +252,10 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
     MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Evaluating %d nodes in partition\n", inputs_.size());
     // Process each node in the partition
     for(int i = 0; i < inputs_.size(); i++) {
+
+      auto start_time = std::chrono::high_resolution_clock::now();
+
+
       // Safety check for tensor indices
       if (inputs_[i].empty() || outputs_[i].empty()) {
         TF_LITE_KERNEL_LOG(context, "Error: Empty tensor indices for node %d\n", i);
@@ -306,7 +310,9 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d: input_tensor.data.f address: %p, input_features: %d\n", 
                i, input_tensor.data.f, input_features);
         
-
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> safety_duration = end_time - start_time;
+        EXECUTION_TIME_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Safety check 1 time: %.3f ms\n", i, safety_duration.count());
 
         auto start_time = std::chrono::high_resolution_clock::now();
         if (fpga_bram_driver_->write_input_to_bram(input_tensor.data.f, input_features)) {
@@ -339,6 +345,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
       std::chrono::duration<double, std::milli> compute_duration = end_time - start_time;
       EXECUTION_TIME_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Time taken for FPGA computation: %.3f ms\n", i, compute_duration.count());
 
+      auto start_time = std::chrono::high_resolution_clock::now();
 
       TF_LITE_KERNEL_LOG(context, "Node %d - FPGA computation completed successfully\n", i);
       // Read output from output BRAM into output tensor (FLOAT32 only)
@@ -357,6 +364,11 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d: output_tensor.data.f address: %p, output_features: %d\n", 
                i, output_tensor.data.f, output_features);
         fflush(stdout);
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> safety_duration = end_time - start_time;
+        EXECUTION_TIME_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Safety check 2 time: %.3f ms\n", i, safety_duration.count());
+
 
         auto start_time = std::chrono::high_resolution_clock::now();
         if (fpga_bram_driver_->read_output_from_bram(output_tensor.data.f, output_features)) {
