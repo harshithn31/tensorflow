@@ -261,10 +261,10 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         TF_LITE_KERNEL_LOG(context, "Error: Empty tensor indices for node %d\n", i);
         return kTfLiteError;
       }
-      TF_LITE_KERNEL_LOG(context, "Evaluating node %d with input_Tidx=%d, output_Tidx=%d\n",
-                         i, inputs_[i][0], outputs_[i][0]);
-      MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Evaluating node %d with input_Tidx=%d, output_Tidx=%d\n",
-             i, inputs_[i][0], outputs_[i][0]);
+      // TF_LITE_KERNEL_LOG(context, "Evaluating node %d with input_Tidx=%d, output_Tidx=%d\n",
+      //                    i, inputs_[i][0], outputs_[i][0]);
+      // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Evaluating node %d with input_Tidx=%d, output_Tidx=%d\n",
+      //        i, inputs_[i][0], outputs_[i][0]);
       const TfLiteTensor& input_tensor = context->tensors[inputs_[i][0]];
       TfLiteTensor& output_tensor = context->tensors[outputs_[i][0]];
       // Check if input and output tensors are valid
@@ -280,19 +280,19 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
                            i, input_size, output_size);
         return kTfLiteError;
       }
-      // Debug logging for tensor sizes
-      TF_LITE_KERNEL_LOG(context, "Node %d - Tensor sizes - Input: %d, Output: %d\n", i, input_size, output_size);
-      TF_LITE_KERNEL_LOG(context, "Node %d - Input tensor shape: [%d, %d]\n", i, input_tensor.dims->data[0], input_tensor.dims->data[1]);
-      TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor shape: [%d, %d]\n", i, output_tensor.dims->data[0], output_tensor.dims->data[1]);
-      MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Tensor sizes - Input: %d, Output: %d\n", i, input_size, output_size);
-      MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Input tensor shape: [%d, %d]\n", 
-             i, input_tensor.dims->data[0], input_tensor.dims->data[1]);
-      MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Output tensor shape: [%d, %d]\n", 
-             i, output_tensor.dims->data[0], output_tensor.dims->data[1]);
+      // // Debug logging for tensor sizes
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Tensor sizes - Input: %d, Output: %d\n", i, input_size, output_size);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Input tensor shape: [%d, %d]\n", i, input_tensor.dims->data[0], input_tensor.dims->data[1]);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor shape: [%d, %d]\n", i, output_tensor.dims->data[0], output_tensor.dims->data[1]);
+      // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Tensor sizes - Input: %d, Output: %d\n", i, input_size, output_size);
+      // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Input tensor shape: [%d, %d]\n", 
+      //        i, input_tensor.dims->data[0], input_tensor.dims->data[1]);
+      // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Output tensor shape: [%d, %d]\n", 
+      //        i, output_tensor.dims->data[0], output_tensor.dims->data[1]);
       // Extract the actual feature dimensions (ignore batch dimension)
       const int input_features = input_tensor.dims->data[1];  // Features dimension
       const int output_features = output_tensor.dims->data[1]; // Output features dimension
-      TF_LITE_KERNEL_LOG(context, "Node %d - Feature dimensions - Input: %d, Output: %d\n", i, input_features, output_features);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Feature dimensions - Input: %d, Output: %d\n", i, input_features, output_features);
       // Write input tensor to input BRAM (FLOAT32 only)
       if (input_tensor.type == kTfLiteFloat32) {
         // Safety check: ensure input tensor data is allocated
@@ -306,9 +306,9 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
           TF_LITE_KERNEL_LOG(context, "Eval failed: batch size %d not supported for node %d. Only batch size 1 supported.\n", batch_size, i);
           return kTfLiteError;
         }
-        TF_LITE_KERNEL_LOG(context, "Node %d - Input tensor data address: %p\n", i, input_tensor.data.f);
-        MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d: input_tensor.data.f address: %p, input_features: %d\n", 
-               i, input_tensor.data.f, input_features);
+        // TF_LITE_KERNEL_LOG(context, "Node %d - Input tensor data address: %p\n", i, input_tensor.data.f);
+        // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d: input_tensor.data.f address: %p, input_features: %d\n", 
+        //        i, input_tensor.data.f, input_features);
         
         auto end_time_1 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> safety_duration_1 = end_time_1 - start_time_1;
@@ -326,15 +326,15 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
 
 
         // DEBUG: Print what we're passing to BRAM
-        MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Calling write_input_to_bram with input_features: %d\n", i, input_features);
-        TF_LITE_KERNEL_LOG(context, "Node %d - Successfully wrote input to BRAM (features: %d)\n", i, input_features);
+        // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Calling write_input_to_bram with input_features: %d\n", i, input_features);
+        // TF_LITE_KERNEL_LOG(context, "Node %d - Successfully wrote input to BRAM (features: %d)\n", i, input_features);
       } else {
         TF_LITE_KERNEL_LOG(context, "Eval failed: unsupported input tensor type: %d for node %d. Only FLOAT32 supported.\n", input_tensor.type, i);
         return kTfLiteError;
       }
       // Trigger FPGA execution for this node
-      MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Calling fpga_compute with input_features: %d, output_features: %d\n", i, input_features, output_features);
-      fflush(stdout);
+      // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Calling fpga_compute with input_features: %d, output_features: %d\n", i, input_features, output_features);
+      // fflush(stdout);
 
       auto start_time = std::chrono::high_resolution_clock::now();
       if (fpga_ip_driver_->fpga_compute(input_features, output_features)) {
@@ -347,7 +347,7 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
 
       auto start_time_2 = std::chrono::high_resolution_clock::now();
 
-      TF_LITE_KERNEL_LOG(context, "Node %d - FPGA computation completed successfully\n", i);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - FPGA computation completed successfully\n", i);
       // Read output from output BRAM into output tensor (FLOAT32 only)
       if (output_tensor.type == kTfLiteFloat32) {
         // Safety check: ensure output tensor data is allocated
@@ -359,11 +359,11 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
           TF_LITE_KERNEL_LOG(context, "Tensor info: bytes=%d, allocation_type=%d\n", output_tensor.bytes, output_tensor.allocation_type);
           return kTfLiteError;
         }
-        TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor data address: %p\n", i, output_tensor.data.f);
-        // DEBUG: Print what we're passing to BRAM for output
-        MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d: output_tensor.data.f address: %p, output_features: %d\n", 
-               i, output_tensor.data.f, output_features);
-        fflush(stdout);
+        // TF_LITE_KERNEL_LOG(context, "Node %d - Output tensor data address: %p\n", i, output_tensor.data.f);
+        // // DEBUG: Print what we're passing to BRAM for output
+        // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d: output_tensor.data.f address: %p, output_features: %d\n", 
+        //        i, output_tensor.data.f, output_features);
+        // fflush(stdout);
         
         auto end_time_2 = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> safety_duration_2 = end_time_2 - start_time_2;
@@ -380,15 +380,15 @@ class FullyConnectedDelegateKernel : public SimpleDelegateKernelInterface {
         EXECUTION_TIME_DEBUG_LOG("[DELEGATE-DEBUG: Eval] Node %d - Time taken to read output from BRAM: %.3f ms\n", i, read_duration.count());
 
 
-        TF_LITE_KERNEL_LOG(context, "Node %d - Successfully read output from BRAM (features: %d)\n", i, output_features);
+        // TF_LITE_KERNEL_LOG(context, "Node %d - Successfully read output from BRAM (features: %d)\n", i, output_features);
       } else {
         TF_LITE_KERNEL_LOG(context, "Eval failed: unsupported output tensor type: %d for node %d. Only FLOAT32 supported.\n", output_tensor.type, i);
         return kTfLiteError;
       }
-      TF_LITE_KERNEL_LOG(context, "Node %d - Processing completed successfully\n", i);
+      // TF_LITE_KERNEL_LOG(context, "Node %d - Processing completed successfully\n", i);
     } // End of for loop - this was missing!
-    TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Eval completed successfully =========\n");
-    MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] =============FullyConnectedDelegateKernel::Eval completed successfully=================\n");
+    // TF_LITE_KERNEL_LOG(context, "======== FullyConnectedDelegateKernel::Eval completed successfully =========\n");
+    // MY_DEBUG_LOG("[DELEGATE-DEBUG: Eval] =============FullyConnectedDelegateKernel::Eval completed successfully=================\n");
     return kTfLiteOk;
   }
 
